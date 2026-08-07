@@ -61,12 +61,11 @@ def generate_ai_batch(api_key, subject, count):
         try:
             model = genai.GenerativeModel(model_name='gemini-1.5-flash')
             response = model.generate_content(
-                f"시스템 지시사항: {system_prompt}\n\n과목: {subject}, 문항 수: {count}개 생성해라.",
+                f"시스템 지시사항: {system_prompt}\n\n과목: {subject}, 문항 수: {count}개 생성해줘.",
                 generation_config={"response_mime_type": "application/json", "temperature": 0.7},
                 safety_settings=safety_settings
             )
             
-            # AI 답변 텍스트 전처리 (마크다운 기호 강제 제거)
             clean_text = response.text.strip()
             if clean_text.startswith("```"):
                 clean_text = re.sub(r'^```[a-zA-Z]*\n', '', clean_text)
@@ -79,11 +78,9 @@ def generate_ai_batch(api_key, subject, count):
         except Exception:
             time.sleep(1.0)
             
-    # ⭐ [안전 백업 장치 가동] 에러 발생 시 팅기지 않도록 고품질 백업 문제들을 안전 장치로 즉시 채우기
     return [{"과목": subject, "문제": f"$\\sqrt{{ R^2 + X_L^2 }}$ 공식을 이용한 {subject} 실전 변형 문제입니다. 다음 중 역률 계산 공식으로 올바른 것은?", "보기": ["1) $\\frac{R}{Z}$", "2) $\\frac{X}{Z}$", "3) $\\frac{Z}{R}$", "4) $\\frac{Z}{X}$"], "정답": "1", "해설": "역률 $\\cos\\theta = \\frac{R}{Z}$ 이며 임피던스 $Z = \\sqrt{R^2 + X^2}$ 입니다."} for _ in range(count)]
 
 def generate_60_exams(api_key):
-    # 족보에서 20개 무작위 샘플링 추출
     jokbo_sample = random.sample(PDF_JOKBO_DATA, min(20, len(PDF_JOKBO_DATA)))
     
     progress_text = st.empty()
@@ -173,3 +170,6 @@ if menu == "📢 메인 화면":
     st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
 
 elif menu == "🎯 60문항 실전 모의고사":
+    # ⭐ [들여쓰기 버그 완치!] if-else 문과 내부 렌더링 블록의 간격을 일관되게 정렬 완료
+    if st.session_state.exam_set is None:
+        st.subheader("📝 족보 결합형 실전 CBT 모의고사")
