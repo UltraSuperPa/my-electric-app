@@ -55,7 +55,7 @@ def load_wrong_answers():
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 
 # 🛠️ [가장 중요] 여기에 김경욱 님의 진짜 구글 무료 API 키(AIzaSy...)를 정확하게 붙여넣으세요!
-MY_API_KEY = "AQ.Ab8RN6Jsybtta-vQhZk-o2H62umJ80RtHOd1_yF4Mu6cahG-6w"
+MY_API_KEY = ""
 
 # 🎨 [글자 크기 시원시원하게 2배로 키우는 디자인]
 st.markdown("""
