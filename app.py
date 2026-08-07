@@ -29,7 +29,6 @@ PDF_JOKBO_DATA = [
     {"과목": "전기설비", "문제": "전등 한 개를 두 개소에서 점멸하고자 할 때 3로 스위치는 최소 몇 개가 필요한가?", "보기": ["1) 1개", "2) 2개", "3) 3개", "4) 4개"], "정답": "2", "해설": "2개소 점멸 제어 회로를 구성하기 위해서는 3로 스위치 2개가 필요합니다."}
 ]
 
-# 구형 google-generativeai 방식의 안전한 생성 파트
 def generate_ai_batch(api_key, subject, count):
     genai.configure(api_key=str(api_key).strip())
     
@@ -60,7 +59,7 @@ def generate_ai_batch(api_key, subject, count):
     for attempt in range(3):
         try:
             model = genai.GenerativeModel(
-                model_name='gemini-1.5-flash',  # 구형 라이브러리용 안정화 모델 변경
+                model_name='gemini-1.5-flash',
                 system_instruction=system_prompt
             )
             response = model.generate_content(
@@ -139,10 +138,11 @@ def load_wrong_answers():
                 return []
     return []
 
-# 📱 순정 UI 설정 (오류 완전 배제)
+# 📱 기본 앱 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
+# 세션 상태 변수 안전하게 초기화
 if 'exam_set' not in st.session_state: st.session_state.exam_set = None
 if 'current_index' not in st.session_state: st.session_state.current_index = 0
 if 'user_answers' not in st.session_state: st.session_state.user_answers = {}
@@ -153,7 +153,7 @@ menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 60문항 실전 �
 st.markdown("---")
 
 if menu == "📢 메인 화면":
-    st.subheader("환영합니다! 👋")
+    st.subheader("김경욱 님, 환영합니다! 👋")
     wrong_list = load_wrong_answers()
     wrong_count = len(wrong_list)
     hard_count = sum(1 for item in wrong_list if item.get("틀린횟수", 1) >= 2)
@@ -166,11 +166,17 @@ if menu == "📢 메인 화면":
     st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
 
 elif menu == "🎯 60문항 실전 모의고사":
+    # ⭐ [팅김 완치] 버튼 누를 때 세션 상태를 저장하고 즉시 강제 갱신 처리
     if st.session_state.exam_set is None:
         st.subheader("📝 족보 결합형 실전 CBT 모의고사")
         st.markdown("족보 20문항 + AI 핵심 변형 40문항이 출제됩니다.")
-        if st.button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
-            with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
-                st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
-                st.session_state.current_index = 0
-                st.session_state.user_answers = {}
+        
+        # form 구조를 써서 버튼 씹힘 및 팅김 현상을 방지
+        with st.form("exam_init_form"):
+            submit_btn = st.form_submit_with_id(
+                label="🚀 모의고사 시험지 출제",
+                id="submit_generate_btn",
+                use_container_width=True
+            )
+            if submit_btn:
+                with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
