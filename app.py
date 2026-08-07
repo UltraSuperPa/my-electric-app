@@ -69,7 +69,7 @@ st.markdown("""
         font-weight: bold !important;
     }
     </style>
-""", unsafe_value_handling="IGNORE")
+""", unsafe_allow_html=True)
 
 if 'quiz' not in st.session_state:
     st.session_state.quiz = None
