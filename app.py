@@ -53,7 +53,7 @@ def load_wrong_answers():
 # 📱 모바일 화면 최적화 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 
-# 🛠️ [버그 원천 해결] 스트림릿 암호 상자를 쓰지 않고, 시스템이 보관함에서 열쇠를 자동으로 안전하게 꺼내오도록 연동합니다.
+# Secrets 보관함에서 구글 키 자동 추출
 REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
 # 🎨 [글자 크기 시원시원하게 2배로 키우는 디자인]
@@ -105,10 +105,14 @@ elif menu == "🎯 최신 기출 풀기":
                 st.rerun()
 
         if st.session_state.submitted:
-            if str(choice) == str(q['정답']):
+            # 🛠️ [채점 버그 완치 완료!] 김경욱 님이 고른 보기("1) 4.8")에서 맨 앞 글자("1")만 안전하게 잘라내어 채점합니다.
+            user_number = str(choice)[0] if choice else ""
+            real_answer = str(q['정답']).strip()
+
+            if user_number == real_answer:
                 st.success("⭕ 정답입니다! 아주 훌륭하십니다! 🎉")
             else:
-                st.error(f"❌ 틀렸습니다! (실제 정답: {q['정답']}번)")
+                st.error(f"❌ 틀렸습니다! (내가 고른 답: {user_number}번 / 실제 정답: {real_answer}번)")
                 save_wrong_answer(q)
                 
             st.warning(f"💡 [기출 해설]\n{q['해설']}")
@@ -140,8 +144,12 @@ elif menu == "📝 내 오답노트 복습":
                     st.rerun()
                     
             if st.session_state.get('review_submitted', False):
-                if str(r_choice) == str(rq['정답']):
+                # 🛠️ [오답 복습방 채점 버그도 완치 완료!]
+                user_rev_num = str(r_choice)[0] if r_choice else ""
+                real_rev_answer = str(rq['정답']).strip()
+
+                if user_rev_num == real_rev_answer:
                     st.success("⭕ 맞췄습니다! 오답을 정복하셨네요! 👏")
                 else:
-                    st.error(f"❌ 또 틀렸습니다! (정답: {rq['정답']}번)")
+                    st.error(f"❌ 또 틀렸습니다! (정답: {real_rev_answer}번)")
                 st.warning(f"💡 [해설 다시보기]\n{rq['해설']}")
