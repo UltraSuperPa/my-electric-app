@@ -285,32 +285,3 @@ elif menu == "🎯 60문항 실전 모의고사":
                     st.warning(
                         "📚 조금 더 공부하세요."
                     )
-                    elif menu == "📝 내 오답노트 복습":
-
-    wrongs = load_wrong_answers()
-
-    st.subheader("📝 오답노트")
-
-    if not wrongs:
-
-        st.info(
-            "저장된 오답이 없습니다."
-        )
-
-    else:
-
-        for q in wrongs:
-
-            st.write(
-                f"[{q['과목']}] {q['문제']}"
-            )
-
-            st.success(
-                f"정답 : {q['정답']}번"
-            )
-
-            st.info(
-                q["해설"]
-            )
-
-            st.markdown("---")
