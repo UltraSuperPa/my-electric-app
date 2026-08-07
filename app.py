@@ -170,3 +170,147 @@ elif menu == "🎯 60문항 실전 모의고사":
         if st.button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
             with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
                 st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
+                st.session_state.current_index = 0
+                st.rerun()
+
+    else:
+
+        exam = st.session_state.exam_set
+        idx = st.session_state.current_index
+        quiz = exam[idx]
+
+        st.progress((idx + 1) / len(exam))
+
+        st.subheader(
+            f"문제 {idx + 1} / {len(exam)}"
+        )
+
+        st.write(
+            f"[{quiz['과목']}] {quiz['문제']}"
+        )
+
+        answer = st.radio(
+
+            "정답을 선택하세요",
+
+            quiz["보기"],
+
+            key=f"quiz_{quiz['번호']}"
+
+        )
+
+        st.session_state.user_answers[
+            quiz["번호"]
+        ] = answer
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            if idx > 0:
+
+                if st.button("⬅ 이전 문제"):
+
+                    st.session_state.current_index -= 1
+                    st.rerun()
+
+        with col2:
+
+            if idx < len(exam) - 1:
+
+                if st.button("다음 문제 ➡"):
+
+                    st.session_state.current_index += 1
+                    st.rerun()
+
+        st.markdown("---")
+
+        if idx == len(exam) - 1:
+
+            if st.button(
+                "✅ 시험 제출",
+                use_container_width=True,
+                type="primary"
+            ):
+
+                score = 0
+
+                st.session_state.exam_submitted = True
+
+                st.markdown("# 📊 채점 결과")
+
+                for q in exam:
+
+                    user = st.session_state.user_answers.get(
+                        q["번호"],
+                        ""
+                    )
+
+                    selected = (
+                        user[0]
+                        if user else ""
+                    )
+
+                    if selected == q["정답"]:
+
+                        score += 1
+
+                    else:
+
+                        save_wrong_answer(q)
+
+                percent = round(
+                    score / len(exam) * 100,
+                    1
+                )
+
+                st.success(
+                    f"점수 : {score} / {len(exam)}"
+                )
+
+                st.info(
+                    f"정답률 : {percent}%"
+                )
+
+                if percent >= 60:
+
+                    st.balloons()
+
+                    st.success(
+                        "🎉 합격권입니다!"
+                    )
+
+                else:
+
+                    st.warning(
+                        "📚 조금 더 공부하세요."
+                    )
+                    elif menu == "📝 내 오답노트 복습":
+
+    wrongs = load_wrong_answers()
+
+    st.subheader("📝 오답노트")
+
+    if not wrongs:
+
+        st.info(
+            "저장된 오답이 없습니다."
+        )
+
+    else:
+
+        for q in wrongs:
+
+            st.write(
+                f"[{q['과목']}] {q['문제']}"
+            )
+
+            st.success(
+                f"정답 : {q['정답']}번"
+            )
+
+            st.info(
+                q["해설"]
+            )
+
+            st.markdown("---")
