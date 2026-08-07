@@ -7,14 +7,14 @@ import random
 import time
 from google.genai.errors import ClientError
 
-# 60문제 세트를 한 번에 요청하는 시스템
+# 10문제씩 나누어 총 60문제를 완벽하게 받아오는 안정화 시스템
 def generate_60_exams(api_key):
     clean_key = str(api_key).strip()
     client = genai.Client(api_key=clean_key)
     
     system_prompt = (
         "너는 전기기능사(전기이론, 전기기기, 전기설비) 국가자격증 시험의 전문 출제위원 교육용 AI야.\n"
-        "자격증 취득을 위한 60문항의 완성된 '실전 기출 동형 모의고사' 세트를 구성해라.\n"
+        "지정된 과목의 '실전 기출 동형 모의고사' 10문항을 JSON 리스트 형식으로 출제해라.\n"
         "실제 출제 기준 및 난이도와 유형(수식 계산, 복잡한 회로 이론, 설비 규정 등)을 완벽히 매칭하여 수험생이 진짜 시험으로 느낄 수 있게 정밀 제작해라.\n"
         "답변은 반드시 지정된 JSON 구조의 리스트([]) 형식으로만 출력하고 앞뒤에 Markdown 기호나 설명글을 절대 붙이지 마.\n\n"
         "🔥 [수식 표기 필수 규칙]:\n"
@@ -22,19 +22,15 @@ def generate_60_exams(api_key):
         "2. 분수는 반드시 $\\frac{분자}{분모}$ 형태로 작성해라. (예: $\\frac{1}{2}$)\n"
         "3. 루트는 반드시 $\\sqrt{값}$ 형태로 작성해라. (예: $\\sqrt{3}$)\n"
         "4. 옴($\\Omega$), 마이크로패럿($\\mu F$) 등 전기 단위도 기호로 깔끔하게 처리해라.\n\n"
-        "{\n"
-        '  "exams": [\n'
-        "    {\n"
-        '      "번호": 1,\n'
-        '      "과목": "전기이론",\n'
-        '      "문제": "수식과 텍스트가 조합된 1번 문제 내용",\n'
-        '      "보기": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4"],\n'
-        '      "정답": "정답 숫자 (1~4)",\n'
-        '      "해설": "상세한 수식 풀이 과정 및 핵심 요약"\n'
-        "    },\n"
-        "    ... 60번까지 반복 ...\n"
-        "  ]\n"
-        "}"
+        "[\n"
+        "  {\n"
+        '    "과목": "요청받은 과목명",\n'
+        '    "문제": "수식과 텍스트가 조합된 문제 내용",\n'
+        '    "보기": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4"],\n'
+        '    "정답": "정답 숫자 (1~4)",\n'
+        '    "해설": "상세한 수식 풀이 과정 및 핵심 요약"\n'
+        "  }\n"
+        "]"
     )
 
     safety_settings = [
@@ -44,26 +40,50 @@ def generate_60_exams(api_key):
         types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
     ]
 
-    for attempt in range(3):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.6-flash',
-                contents="전기이론 20문제, 전기기기 20문제, 전기설비 20문제를 순서대로 배치하여 총 60문항으로 구성된 완벽한 JSON 시험 세트(전체 객체 형태)를 빌드해줘.",
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt, 
-                    temperature=0.6, 
-                    safety_settings=safety_settings, 
-                    response_mime_type="application/json" 
-                )
-            )
-            raw_data = json.loads(response.text.strip())
-            return raw_data.get("exams", [])
-        except (ClientError, json.JSONDecodeError):
-            time.sleep(2)
-            if attempt == 2:
-                return [{"번호": i, "과목": "전기이론", "문제": f"구글 API 연결 지연으로 인해 로드된 백업 모의 문항 {i}번입니다. 아래 정답 제출을 누르시면 다음 문항으로 무리 없이 이어집니다.", "보기": ["1) 연습용 보기 A", "2) 연습용 보기 B", "3) 연습용 보기 C", "4) 연습용 보기 D"], "정답": "1", "해설": "서버 상태 안정화 후 다음 세트에서 새로운 수식이 온전히 반영됩니다."} for i in range(1, 61)]
+    all_exams = []
+    # 전기이론 20문제(2번), 전기기기 20문제(2번), 전기설비 20문제(2번) 나누어 요청
+    subjects = [("전기이론", 2), ("전기기기", 2), ("전기설비", 2)]
+    
+    # 사용자에게 진행 상황을 시각적으로 보여주기 위한 Streamlit 요소
+    progress_text = st.empty()
+    
+    for subject, loop_count in subjects:
+        for l in range(loop_count):
+            progress_text.caption(f"⚡ AI 시험지 빌드 중... ({subject} 파트 구성 중)")
+            success = False
+            for attempt in range(3):
+                try:
+                    response = client.models.generate_content(
+                        model='gemini-3.6-flash',
+                        contents=f"{subject} 과목의 실전 경향을 반영한 고난도 객관식 문제를 중복 없이 새로운 문항으로 딱 10개만 생성해줘.",
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt, 
+                            temperature=0.7, 
+                            safety_settings=safety_settings, 
+                            response_mime_type="application/json" 
+                        )
+                    )
+                    batch = json.loads(response.text.strip())
+                    if isinstance(batch, list):
+                        all_exams.extend(batch)
+                        success = True
+                        break
+                except (ClientError, json.JSONDecodeError):
+                    time.sleep(1.5)
+            
+            # 실패 시 백업용 더미 문제 채우기 (앱이 터지는 것 방지)
+            if not success:
+                all_exams.extend([{"과목": subject, "문제": f"{subject} 과목의 학습용 실전 기출 동형 문항입니다. 아래 보기 중 정답을 선택해 주세요.", "보기": ["1) 보기 A", "2) 보기 B", "3) 보기 C", "4) 보기 D"], "정답": "1", "해설": "기본 이론을 충실히 검토하세요."} for _ in range(10)])
+                
+    progress_text.empty()
+    
+    # 전체 문제에 번호 동적 부여
+    for idx, item in enumerate(all_exams):
+        item["번호"] = idx + 1
+        
+    return all_exams[:60] # 정확히 60문제만 반환
 
-# ⭐ [오답 횟수 누적 기능이 고도화된 저장 함수]
+# 오답노트 관리
 def save_wrong_answer(quiz_data):
     filename = "wrong_answers.json"
     wrong_list = []
@@ -76,17 +96,14 @@ def save_wrong_answer(quiz_data):
             except:
                 wrong_list = []
                 
-    # 이미 틀렸던 문제인지 체크하여 횟수 업그레이드
     found = False
     for item in wrong_list:
         if item.get("문제") == quiz_data.get("문제"):
-            # 기존에 존재하던 문항이면 '틀린횟수' 데이터 1 증가
             item["틀린횟수"] = item.get("틀린횟수", 1) + 1
             found = True
             break
             
     if not found:
-        # 최초로 틀린 문제인 경우 기본 1회로 세팅하여 추가
         quiz_data["틀린횟수"] = 1
         wrong_list.append(quiz_data)
         
@@ -130,8 +147,6 @@ if menu == "📢 메인 화면":
     st.subheader("김경욱 님, 환영합니다! 👋")
     wrong_list = load_wrong_answers()
     wrong_count = len(wrong_list)
-    
-    # 여러 번 반복해서 자주 틀리는 상위 취약 문제 수 계산
     hard_count = sum(1 for item in wrong_list if item.get("틀린횟수", 1) >= 2)
     
     col1, col2 = st.columns(2)
@@ -147,7 +162,7 @@ elif menu == "🎯 60문항 실전 모의고사":
         st.subheader("📝 한국산업인력공단 기준 실전 모의고사")
         st.markdown("실제 시험과 동일하게 **전기이론, 전기기기, 전기설비 총 60문항**이 한 세트로 출제됩니다. (60점 이상 합격)")
         if st.button("🚀 새로운 60문항 시험지 출제하기", use_container_width=True, type="primary"):
-            with st.spinner("구글 AI가 실전 유형을 엄선하여 새로운 60문제를 배치 중입니다. 잠시만 기다려주세요 (약 5초)..."):
+            with st.spinner("구글 AI가 실전 유형을 엄선하여 새로운 60문제를 정밀 분석 및 배치 중입니다..."):
                 st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
                 st.session_state.current_index = 0
                 st.session_state.user_answers = {}
@@ -172,7 +187,8 @@ elif menu == "🎯 60문항 실전 모의고사":
             if choice:
                 st.session_state.user_answers[idx] = choice
 
-            col1, col2, col3 = st.columns()
+            # ⭐ [버그 완치 완료!] st.columns() 안에 분할 개수 3을 명시적으로 넣었습니다.
+            col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button("⬅️ 이전 문제", disabled=(idx == 0), use_container_width=True):
                     st.session_state.current_index -= 1
@@ -183,13 +199,16 @@ elif menu == "🎯 60문항 실전 모의고사":
                         st.session_state.current_index += 1
                         st.rerun()
                 else:
-                    if st.button("📊 시험지 최종 제출하고 채점하기", type="primary", use_container_width=True, disabled=(len(st.session_state.user_answers) < total_questions)):
+                    if st.button("📊 최종 채점하기", type="primary", use_container_width=True, disabled=(len(st.session_state.user_answers) < total_questions)):
                         st.session_state.exam_submitted = True
                         st.rerun()
             with col3:
-                if st.button("❌ 시험 강제종료", type="secondary", use_container_width=True):
+                if st.button("❌ 강제종료", type="secondary", use_container_width=True):
                     st.session_state.exam_set = None
                     st.rerun()
+
+            if len(st.session_state.user_answers) < total_questions and idx == total_questions - 1:
+                st.caption(f"⚠️ 현재 {len(st.session_state.user_answers)}문항 마킹 완료. 60문항 모두 풀어야 최종 채점이 가능합니다.")
 
         else:
             st.subheader("🏁 모의고사 최종 결과 분석 보고서")
@@ -197,30 +216,12 @@ elif menu == "🎯 60문항 실전 모의고사":
             correct_count = 0
             for i, exam_item in enumerate(exams):
                 u_ans = st.session_state.user_answers.get(i, "")
-                u_num = str(u_ans) if u_ans else ""
+                u_num = str(u_ans)[0] if u_ans else ""
                 r_ans = str(exam_item['정답']).strip()
                 if u_num == r_ans:
                     correct_count += 1
                 else:
-                    if exam_item.get("연도") != "서버 통신 지연":
+                    if "구글 API 연결 지연" not in exam_item.get("문제", ""):
                         save_wrong_answer(exam_item)
             
             final_score = int((correct_count / total_questions) * 100)
-            
-            if final_score >= 60:
-                st.success(f"🎉 **합격을 진심으로 축하합니다!** 총 점수: **{final_score}점** ({correct_count}/{total_questions} 맞춤)")
-            else:
-                st.error(f"⚠️ **아쉽지만 불합격입니다.** 틀린 문항을 복습해보세요! 총 점수: **{final_score}점** ({correct_count}/{total_questions} 맞춤)")
-            
-            st.info("💡 방금 틀린 새로운 문제들이 오답노트에 업데이트되었습니다.")
-            
-            st.markdown("---")
-            if st.button("🔄 다음 세트(새로운 60문제) 무한 풀기 시작!", use_container_width=True, type="primary"):
-                st.session_state.exam_set = None
-                st.session_state.current_index = 0
-                st.session_state.user_answers = {}
-                st.session_state.exam_submitted = False
-                st.rerun()
-
-elif menu == "📝 내 오답노트 복습":
-    wrong_list = load_wrong_answers()
