@@ -7,7 +7,6 @@ import random
 
 # 구글 AI에게 기출 원본 요청
 def generate_real_exam(api_key):
-    # 키 앞뒤에 숨은 공백을 강제로 청소합니다.
     clean_key = str(api_key).strip()
     client = genai.Client(api_key=clean_key)
     
@@ -54,7 +53,7 @@ def load_wrong_answers():
 # 📱 모바일 화면 최적화 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 
-# 🛠️ [버그 원천 해결] Secrets 보관함에 저장해 둔 구글 키를 시스템이 자동으로 안전하게 쏙 꺼내옵니다!
+# 🛠️ [버그 원천 해결] 스트림릿 암호 상자를 쓰지 않고, 시스템이 보관함에서 열쇠를 자동으로 안전하게 꺼내오도록 연동합니다.
 REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
 # 🎨 [글자 크기 시원시원하게 2배로 키우는 디자인]
@@ -90,7 +89,6 @@ if menu == "📢 메인 화면":
 elif menu == "🎯 최신 기출 풀기":
     if st.session_state.quiz is None:
         with st.spinner("새로운 기출문제 소환 중..."):
-            # 🛠️ 자동 추출한 진짜 열쇠를 엔진에 주입합니다.
             st.session_state.quiz = generate_real_exam(REAL_GOOGLE_KEY)
             st.session_state.submitted = False
 
