@@ -4,6 +4,8 @@ from google.genai import types
 import json
 import os
 import random
+import time
+from google.genai.errors import ClientError
 
 # 구글 AI에게 기출 원본 요청
 def generate_real_exam(api_key):
@@ -13,7 +15,7 @@ def generate_real_exam(api_key):
     system_prompt = (
         "너는 전기기능사 국가자격증 시험의 전문 기출문제 보관소야.\n"
         "절대로 문제를 변형하거나 창작하지 말고, 2023~2026년 한국산업인력공단 필기 시험에 출제되었던 '진짜 원본 기출문제' 중 1문제를 복원해줘.\n"
-        "반드시 지정된 JSON 형식으로만 답변하고 앞뒤로 설명 글은 절대 붙이지 마.\n\n"
+        "반드시 지정된 JSON 형식으로만 답변해줘.\n\n"
         "{\n"
         '  "연도": "202X년 진짜 기출 원본",\n'
         '  "과목": "과목명",\n'
@@ -23,12 +25,55 @@ def generate_real_exam(api_key):
         '  "해설": "상세한 수식 풀이 및 핵심 요약"\n'
         "}"
     )
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents='전기기능사 실제 기출문제 중 1개를 원본 그대로 복원해줘.',
-        config=types.GenerateContentConfig(system_instruction=system_prompt, temperature=0.3)
-    )
-    return json.loads(response.text.strip())
+
+    # 1. 저작권 오인 및 안전 필터 차단을 우회하기 위한 설정
+    safety_settings = [
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+    ]
+
+    # 2. 에러 발생 시 앱이 멈추지 않도록 최대 3번 자동 재시도
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents='전기기능사 실제 기출문제 중 중복되지 않게 무작위로 1개를 원본 그대로 복원해줘.',
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt, 
+                    temperature=0.4,              # 문제 중복 방지를 위해 다양성 살짝 부여
+                    safety_settings=safety_settings, # 안전 설정 반영
+                    response_mime_type="application/json" # JSON 출력 강제 보장
+                )
+            )
+            return json.loads(response.text.strip())
+
+        except (ClientError, json.JSONDecodeError):
+            # 순간적인 호출 제한이나 연결 오류 발생 시 2초 대기 후 재시도
+            time.sleep(2)
+            if attempt == 2:
+                # 3번 모두 실패 시 사용자 화면에 임시 더미 문제 띄우기
+                return {
+                    "연도": "서버 통신 지연", 
+                    "과목": "네트워크 점검",
+                    "문제": "구글 API와 통신이 원활하지 않습니다. 아래 버튼을 눌러 다음 문제로 넘어가주세요.",
+                    "보기": ["1) 다시 시도하기", "2) 다시 시도하기", "3) 다시 시도하기", "4) 다시 시도하기"],
+                    "정답": "1", 
+                    "해설": "안전 필터 오작동 또는 순간적인 호출량 초과 상태입니다."
+                }
 
 # 오답 저장 및 로드 기능
 def save_wrong_answer(quiz_data):
@@ -105,7 +150,6 @@ elif menu == "🎯 최신 기출 풀기":
                 st.rerun()
 
         if st.session_state.submitted:
-            # 🛠️ [채점 버그 완치 완료!] 김경욱 님이 고른 보기("1) 4.8")에서 맨 앞 글자("1")만 안전하게 잘라내어 채점합니다.
             user_number = str(choice)[0] if choice else ""
             real_answer = str(q['정답']).strip()
 
@@ -113,7 +157,8 @@ elif menu == "🎯 최신 기출 풀기":
                 st.success("⭕ 정답입니다! 아주 훌륭하십니다! 🎉")
             else:
                 st.error(f"❌ 틀렸습니다! (내가 고른 답: {user_number}번 / 실제 정답: {real_answer}번)")
-                save_wrong_answer(q)
+                if q['연도'] != "서버 통신 지연":  # 에러 더미 문제는 오답노트에 저장 안 함
+                    save_wrong_answer(q)
                 
             st.warning(f"💡 [기출 해설]\n{q['해설']}")
             st.markdown("---")
@@ -144,7 +189,6 @@ elif menu == "📝 내 오답노트 복습":
                     st.rerun()
                     
             if st.session_state.get('review_submitted', False):
-                # 🛠️ [오답 복습방 채점 버그도 완치 완료!]
                 user_rev_num = str(r_choice)[0] if r_choice else ""
                 real_rev_answer = str(rq['정답']).strip()
 
