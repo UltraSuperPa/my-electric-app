@@ -1,287 +1,451 @@
 import streamlit as st
-import google.generativeai as genai
 import json
 import os
 import random
-import time
 
-# 1. 📌 [기적의 200문제] 엄선 핵심 족보 데이터 보관함
-PDF_JOKBO_DATA = [
-    {"과목": "전기기기", "문제": "동기 발전기의 전기자권선을 단절권으로 하면 어떻게 되는가?", "보기": ["1) 고조파를 제거한다.", "2) 동손을 줄인다.", "3) 역률을 개선한다.", "4) 전압을 높인다."], "정답": "1", "해설": "단절권과 분포권을 사용하면 고조파를 제거하여 기전력의 파형을 개선할 수 있습니다."},
-    {"과목": "전기설비", "문제": "전기 울타리용 전원 장치에 공급하는 전로의 사용 전압은 최대 몇 V 이하이어야 하는가?", "보기": ["1) 150V", "2) 220V", "3) 250V", "4) 300V"], "정답": "3", "해설": "전기울타리에 전원을 공급하는 전로의 사용전압은 250V 이하이어야 합니다."},
-    {"과목": "전기설비", "문제": "다음 중 방수용 콘센트의 그림 기호는 무엇인가?", "보기": ["1) WP", "2) EX", "3) ET", "4) LK"], "정답": "1", "해설": "방수형 콘센트의 기호는 WP입니다."},
-    {"과목": "전기기기", "문제": "유도 전동기가 회전하고 있을 때 생기는 손실 중에서 구리손이란?", "보기": ["1) 철심의 히스테리시스손", "2) 철심의 와류손", "3) 1차와 2차의 권선 저항손", "4) 베어링 마찰손"], "정답": "3", "해설": "구리손은 권선의 저항에 의해 전류가 흐르면서 발생하는 저항손입니다."},
-    {"과목": "전기이론", "문제": "$1\\text{ Ah}$는 몇 $\\text{C}$인가?", "보기": ["1) 60 C", "2) 360 C", "3) 1,200 C", "4) 3,600 C"], "정답": "4", "해설": "$1\\text{ Ah} = 1\\text{ A} \\times 3600\\text{초} = 3,600\\text{ C}$ 입니다."},
-    {"과목": "전기이론", "문제": "다음 중 전위의 단위가 아닌 것을 고르시오.", "보기": ["1) V", "2) J/C", "3) V/m", "4) N·m/C"], "정답": "3", "해설": "V/m는 전위의 단위가 아니라 전개의 세기 단위입니다."},
-    {"과목": "전기기기", "문제": "다음 단상 유도 전동기에서 역률이 가장 좋은 것은?", "보기": ["1) 반발 기동형", "2) 콘덴서 기동형", "3) 분상 기동형", "4) 쉐이딩 코일형"], "정답": "2", "해설": "콘덴서 기동형 전동기는 운전 중에도 콘덴서가 접속되어 있어 역률과 효율이 우수합니다."},
-    {"과목": "전기설비", "문제": "저압 옥내 분기 회로에 개폐기 및 과전류 차단기를 시설하는 경우 원칙적으로 분기점에서 몇 m 이하에 시설해야 하는가?", "보기": ["1) 2m 이하", "2) 3m 이하", "3) 5m 이하", "4) 10m 이하"], "정답": "2", "해설": "분기과전류차단기는 원칙적으로 저압 간선과의 분기점으로부터 3m 이하에 시설합니다."},
-    {"과목": "전기이론", "문제": "규격이 같은 축전지 두 개를 병렬로 연결하였다. 설명 중 옳은 것은?", "보기": ["1) 전압과 용량 모두 2배가 된다.", "2) 전압은 2배가 되고 용량은 변하지 않는다.", "3) 전압은 변하지 않고 용량은 2배가 된다.", "4) 전압과 용량 모두 변하지 않는다."], "정답": "3", "해설": "병렬 연결 시 전압은 일정하고 전체 용량은 개수에 비례하여 늘어납니다."},
-    {"과목": "전기이론", "문제": "최댓값이 $200\\text{V}$인 사인파 교류의 평균값은 약 얼마인가?", "보기": ["1) 100V", "2) 127.38V", "3) 141.4V", "4) 173.2V"], "정답": "2", "해설": "평균값 = 최댓값 $\\times 0.637 = 200 \\times 0.637 = 127.38\\text{V}$ 입니다."},
-    {"과목": "전기설비", "문제": "접지선의 절연 전선 색상은 특별한 경우를 제외하고는 어느 색으로 표시하여야 하는가?", "보기": ["1) 황색", "2) 청색", "3) 녹색과 노란색", "4) 적색"], "정답": "3", "해설": "보호도체는 녹색과 노란색의 혼색 선을 사용하는 것이 규정입니다."},
-    {"과목": "전기이론", "문제": "다음 중 무효 전력의 단위는 어느 것인가?", "보기": ["1) W", "2) VA", "3) var", "4) J"], "정답": "3", "해설": "유효전력은 W, 피상전력은 VA, 무효전력은 var를 사용합니다."},
-    {"과목": "전기이론", "문제": "$4\\,\\Omega$의 저항과 $6\\,\\Omega$의 저항을 직렬로 접속할 때 합성 컨덕턴스는 몇 모인가?", "보기": ["1) 0.1 모", "2) 0.4 모", "3) 2.5 모", "4) 10 모"], "정답": "1", "해설": "합성 저항이 $10\\,\\Omega$ 이므로 합성 컨덕턴스는 0.1 모 입니다."},
-    {"과목": "전기설비", "문제": "자연 공기 내에서 개방할 때 접촉자가 떨어지면서 자연 소호에 의한 소호 방식을 가지는 차단기는?", "보기": ["1) 기중 차단기(ACB)", "2) 유입 차단기(OCB)", "3) 가스 차단기(GCB)", "4) 진공 차단기(VCB)"], "정답": "1", "해설": "대기 중에서 아크를 자연 소호시키는 차단기는 기중 차단기입니다."},
-    {"과목": "전기이론", "문제": "$1\\text{ kWh}$는 몇 $\\text{J}$인가?", "보기": ["1) $3.6 \\times 10^3\\text{ J}$", "2) $3.6 \\times 10^4\\text{ J}$", "3) $3.6 \\times 10^5\\text{ J}$", "4) $3.6 \\times 10^6\\text{ J}$"], "정답": "4", "해설": "$1\\text{ kWh} = 3,600,000\\text{ J} = 3.6 \\times 10^6\\text{ J}$ 입니다."},
-    {"과목": "전기설비", "문제": "사람의 전기 감전을 방지하기 위하여 설치하는 주택용 누전 차단기는 정격 감도 전류와 동작 시간이 얼마 이하여야 하는가?", "보기": ["1) 30mA 이하, 0.03초 이하", "2) 30mA 이하, 0.1초 이하", "3) 15mA 이하, 0.03초 이하", "4) 50mA 이하, 0.05초 이하"], "정답": "1", "해설": "정격감도전류 30mA 이하, 동작시간 0.03초 이하의 고속형이어야 합니다."},
-    {"과목": "전기설비", "문제": "다음 중 내열성 PVC 전선의 최고 허용 온도는?", "보기": ["1) 60℃", "2) 75℃", "3) 90℃", "4) 105℃"], "정답": "3", "해설": "내열성 염화비닐 절연전선의 최고허용온도는 90℃ 입니다."},
-    {"과목": "전기이론", "문제": "줄의 법칙에서 발열량 계산식을 옳게 표시한 것은?", "보기": ["1) $H = 0.24 \\times I \\times R \\times t$", "2) $H = 0.24 \\times I^2 \\times R \\times t$", "3) $H = 0.43 \\times I \\times R^2 \\times t$", "4) $H = 0.43 \\times I^2 \\times R \\times t$"], "정답": "2", "해설": "발열량 $H = 0.24 \\times I^2 \\times R \\times t$ 입니다."},
-    {"과목": "전기기기", "문제": "동기 발전기의 병렬 운전에서 같지 않아도 되는 것은?", "보기": ["1) 기전력의 크기", "2) 기전력의 위상", "3) 발전기의 용량", "4) 기전력의 주파수"], "정답": "3", "해설": "동기발전기 병렬운전 조건에서 용량은 달라도 됩니다."},
-    {"과목": "전기설비", "문제": "전등 한 개를 두 개소에서 점멸하고자 할 때 3로 스위치는 최소 몇 개가 필요한가?", "보기": ["1) 1개", "2) 2개", "3) 3개", "4) 4개"], "정답": "2", "해설": "2개소 점멸 제어 회로를 구성하기 위해서는 3로 스위치 2개가 필요합니다."}
-]
 
-def generate_ai_batch(api_key, subject, count):
-    genai.configure(api_key=str(api_key).strip())
-    
-    system_prompt = (
-        "너는 전기기능사 국가자격증 시험의 전문 출제위원이야.\n"
-        f"지정된 과목 [{subject}]의 실전 기출 동형 객관식 문제를 정확히 {count}개 생성하여 JSON 리스트 형식으로 반환해라.\n"
-        "반드시 지정된 JSON 리스트([]) 형식으로만 출력하고 앞뒤에 설명글이나 마크다운 기호(```json)를 절대 붙이지 마.\n\n"
-        "1. 모든 수학 수식, 분수, 루트는 반드시 LaTeX 문법인 $ 기호로 감싸라.\n"
-        "2. 분수는 $\\frac{분자}{분모}$, 루트는 $\\sqrt{값}$ 형태로 작성해라.\n"
-        "[\n"
-        "  {\n"
-        f'    "과목": "{subject}",\n'
-        '    "문제": "문제 내용",\n'
-        '    "보기": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4"],\n'
-        '    "정답": "정답 숫자 (1~4)",\n'
-        '    "해설": "상세한 풀이 과정"\n'
-        "  }\n"
-        "]"
-    )
+# =========================
+# 기본 설정
+# =========================
 
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-    ]
+st.set_page_config(
+    page_title="전기기능사 CBT",
+    page_icon="⚡",
+    layout="centered"
+)
 
-    for attempt in range(2):
-        try:
-            model = genai.GenerativeModel(model_name='gemini-1.5-flash')
-            response = model.generate_content(
-                f"시스템 지시사항: {system_prompt}\n\n과목: {subject}, 문항 수: {count}개 생성해줘.",
-                generation_config={"response_mime_type": "application/json", "temperature": 0.7},
-                safety_settings=safety_settings
-            )
-            batch = json.loads(response.text.strip())
-            if isinstance(batch, list) and len(batch) > 0:
-                return batch
-        except Exception:
-            time.sleep(1.0)
-            
-    return [{"과목": subject, "문제": f"$\\sqrt{{ R^2 + X_L^2 }}$ 공식을 이용한 {subject} 실전 변형 문제입니다. 다음 중 역률 계산 공식으로 올바른 것은?", "보기": ["1) $\\frac{R}{Z}$", "2) $\\frac{X}{Z}$", "3) $\\frac{Z}{R}$", "4) $\\frac{Z}{X}$"], "정답": "1", "해설": "역률 $\\cos\\theta = \\frac{R}{Z}$ 이며 임피던스 $Z = \\sqrt{R^2 + X^2}$ 입니다."} for _ in range(count)]
 
-def generate_60_exams(api_key):
-    jokbo_sample = random.sample(PDF_JOKBO_DATA, min(20, len(PDF_JOKBO_DATA)))
-    
-    progress_text = st.empty()
-    progress_text.caption("⚡ AI 시험지 빌드 중... (전기이론 변형 파트 구성 중)")
-    ai_theories = generate_ai_batch(api_key, "전기이론", 14)
-    time.sleep(0.3)
-    
-    progress_text.caption("⚡ AI 시험지 빌드 중... (전기기기 변형 파트 구성 중)")
-    ai_machines = generate_ai_batch(api_key, "전기기기", 13)
-    time.sleep(0.3)
-    
-    progress_text.caption("⚡ AI 시험지 빌드 중... (전기설비 변형 파트 구성 중)")
-    ai_installs = generate_ai_batch(api_key, "전기설비", 13)
-    progress_text.empty()
-    
-    total_exam_pool = jokbo_sample + ai_theories + ai_machines + ai_installs
-    random.shuffle(total_exam_pool)
-    
-    for idx, item in enumerate(total_exam_pool):
-        item["번호"] = idx + 1
-        if not item.get("과목"):
-            item["과목"] = "전기이론"
-            
-    return total_exam_pool[:60]
+# =========================
+# 화면 크게 설정
+# =========================
 
-def save_wrong_answer(quiz_data):
-    filename = "wrong_answers.json"
-    wrong_list = []
-    
-    if os.path.exists(filename) and os.path.getsize(filename) > 0:
-        with open(filename, "r", encoding="utf-8") as f:
-            try:
-                wrong_list = json.load(f)
-                if not isinstance(wrong_list, list): wrong_list = []
-            except:
-                wrong_list = []
-                
-    found = False
-    for item in wrong_list:
-        if item.get("문제") == quiz_data.get("문제"):
-            item["틀린횟수"] = item.get("틀린횟수", 1) + 1
-            found = True
-            break
-            
-    if not found:
-        quiz_data["틀린횟수"] = 1
-        wrong_list.append(quiz_data)
-        
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(wrong_list, f, ensure_ascii=False, indent=4)
+st.markdown(
+    """
+    <style>
+    .stMarkdown p {
+        font-size: 22px;
+        line-height: 1.8;
+    }
 
-def load_wrong_answers():
-    filename = "wrong_answers.json"
-    if os.path.exists(filename) and os.path.getsize(filename) > 0:
-        with open(filename, "r", encoding="utf-8") as f:
-            try: 
-                res = json.load(f)
-                return res if isinstance(res, list) else []
-            except: 
-                return []
+    .stRadio label {
+        font-size: 20px !important;
+        padding: 10px;
+    }
+
+    button {
+        font-size: 18px !important;
+    }
+
+    h1 {
+        font-size: 38px !important;
+    }
+
+    h2 {
+        font-size: 30px !important;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# =========================
+# 문제 데이터 불러오기
+# =========================
+
+QUESTION_FILE = "questions.json"
+WRONG_FILE = "wrong_answers.json"
+
+
+def load_questions():
+
+    if os.path.exists(QUESTION_FILE):
+
+        with open(
+            QUESTION_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            return json.load(f)
+
     return []
 
-# 📱 순정 UI 설정
-st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
-REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
-if 'exam_set' not in st.session_state: st.session_state.exam_set = None
-if 'current_index' not in st.session_state: st.session_state.current_index = 0
-if 'user_answers' not in st.session_state: st.session_state.user_answers = {}
-if 'exam_submitted' not in st.session_state: st.session_state.exam_submitted = False
 
-st.title("⚡ 전기기능사 스마트 기출앱")
-menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 60문항 실전 모의고사", "📝 내 오답노트 복습"], horizontal=True)
-st.markdown("---")
+# =========================
+# 오답 저장
+# =========================
 
-if menu == "📢 메인 화면":
-    st.subheader("열공 님, 환영합니다! 👋")
-    wrong_list = load_wrong_answers()
-    wrong_count = len(wrong_list)
-    hard_count = sum(1 for item in wrong_list if item.get("틀린횟수", 1) >= 2)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="저장된 총 오답 문항 수", value=f"{wrong_count}개")
-    with col2:
-        st.metric(label="⚡ 2회 이상 중복 오답 수", value=f"{hard_count}개")
-    st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
+def load_wrong():
 
-elif menu == "🎯 60문항 실전 모의고사":
-    if st.session_state.exam_set is None:
-        st.subheader("📝 족보 결합형 실전 CBT 모의고사")
-        st.markdown("족보 20문항 + AI 핵심 변형 40문항이 출제됩니다.")
-        
-        # ⭐ [들여쓰기 버그 완치!] 띄어쓰기 칸수를 엄격하게 맞춰 공백 오류를 영구 격리했습니다.
-        if st.button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
-            with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
-                st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
-                st.session_state.current_index = 0
+    if os.path.exists(WRONG_FILE):
+
+        with open(
+            WRONG_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            try:
+                return json.load(f)
+
+            except:
+                return []
+
+    return []
+
+
+
+def save_wrong(question):
+
+    wrong = load_wrong()
+
+    exists = False
+
+    for item in wrong:
+
+        if item["문제"] == question["문제"]:
+
+            item["틀린횟수"] = item.get(
+                "틀린횟수",
+                1
+            ) + 1
+
+            exists = True
+
+
+    if not exists:
+
+        question["틀린횟수"] = 1
+        wrong.append(question)
+
+
+    with open(
+        WRONG_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            wrong,
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
+
+
+
+questions = load_questions()
+
+
+# =========================
+# 세션 저장
+# =========================
+
+if "exam" not in st.session_state:
+    st.session_state.exam = []
+
+if "index" not in st.session_state:
+    st.session_state.index = 0
+
+if "score" not in st.session_state:
+    st.session_state.score = 0
+
+if "checked" not in st.session_state:
+    st.session_state.checked = False
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+# =========================
+# 메인 화면
+# =========================
+
+st.title("⚡ 전기기능사 스마트 CBT")
+
+
+menu = st.radio(
+    "메뉴 선택",
+    [
+        "🎯 실전 모의고사",
+        "📝 오답노트 복습"
+    ],
+    horizontal=True
+)
+
+
+st.divider()
+
+
+# =========================
+# 실전 모의고사
+# =========================
+
+if menu == "🎯 실전 모의고사":
+
+
+    if not st.session_state.exam:
+
+
+        st.subheader("60문항 실전 모의고사")
+
+        st.info(
+            "문제를 풀고 답을 선택하면 바로 채점 및 해설이 표시됩니다."
+        )
+
+
+        if st.button(
+            "🚀 시험 시작",
+            use_container_width=True
+        ):
+
+
+            if len(questions) == 0:
+
+                st.error(
+                    "questions.json 파일에 문제가 없습니다."
+                )
+
+            else:
+
+                count = min(
+                    60,
+                    len(questions)
+                )
+
+                st.session_state.exam = random.sample(
+                    questions,
+                    count
+                )
+
+                st.session_state.index = 0
+                st.session_state.score = 0
+                st.session_state.checked = False
+                st.session_state.answers = {}
+
                 st.rerun()
+
+
 
     else:
 
-        exam = st.session_state.exam_set
-        idx = st.session_state.current_index
-        quiz = exam[idx]
 
-        st.progress((idx + 1) / len(exam))
+        quiz = st.session_state.exam[
+            st.session_state.index
+        ]
+
+
+        number = st.session_state.index + 1
+
+
+        st.progress(
+            number / len(st.session_state.exam)
+        )
+
 
         st.subheader(
-            f"문제 {idx + 1} / {len(exam)}"
+            f"문제 {number} / {len(st.session_state.exam)}"
         )
+
 
         st.write(
-            f"[{quiz['과목']}] {quiz['문제']}"
+            f"### [{quiz['과목']}]"
         )
+
+
+        st.markdown(
+            f"## {quiz['문제']}"
+        )
+
+
 
         answer = st.radio(
-
-            "정답을 선택하세요",
-
+            "정답 선택",
             quiz["보기"],
-
-            key=f"quiz_{quiz['번호']}"
-
+            key=f"answer_{number}"
         )
 
-        st.session_state.user_answers[
-            quiz["번호"]
-        ] = answer
 
-        col1, col2 = st.columns(2)
 
-        with col1:
+        # =========================
+        # 즉시 채점
+        # =========================
 
-            if idx > 0:
 
-                if st.button("⬅ 이전 문제"):
+        if st.button(
+            "✅ 정답 확인",
+            use_container_width=True
+        ):
 
-                    st.session_state.current_index -= 1
+
+            selected = answer[0]
+
+
+            st.session_state.checked = True
+
+
+            if selected == quiz["정답"]:
+
+
+                st.session_state.score += 1
+
+
+                st.success(
+                    "🎉 정답입니다!"
+                )
+
+
+            else:
+
+
+                st.error(
+                    f"❌ 오답입니다. 정답은 {quiz['정답']}번 입니다."
+                )
+
+
+                save_wrong(
+                    quiz
+                )
+
+
+            st.info(
+                f"📖 해설\n\n{quiz['해설']}"
+            )
+
+
+
+        # 다음 문제 버튼
+
+
+        if st.session_state.checked:
+
+
+            if st.session_state.index < len(st.session_state.exam)-1:
+
+
+                if st.button(
+                    "다음 문제 ➡",
+                    use_container_width=True
+                ):
+
+
+                    st.session_state.index += 1
+                    st.session_state.checked = False
+
                     st.rerun()
 
-        with col2:
 
-            if idx < len(exam) - 1:
+            else:
 
-                if st.button("다음 문제 ➡"):
 
-                    st.session_state.current_index += 1
-                    st.rerun()
+                if st.button(
+                    "🏁 결과 보기",
+                    use_container_width=True
+                ):
 
-        st.markdown("---")
-
-        if idx == len(exam) - 1:
-
-            if st.button(
-                "✅ 시험 제출",
-                use_container_width=True,
-                type="primary"
-            ):
-
-                score = 0
-
-                st.session_state.exam_submitted = True
-
-                st.markdown("# 📊 채점 결과")
-
-                for q in exam:
-
-                    user = st.session_state.user_answers.get(
-                        q["번호"],
-                        ""
+                    st.success(
+                        f"시험 종료! 점수 : {st.session_state.score} / {len(st.session_state.exam)}"
                     )
 
-                    selected = (
-                        user[0]
-                        if user else ""
+                    rate = round(
+                        st.session_state.score /
+                        len(st.session_state.exam)
+                        * 100,
+                        1
                     )
 
-                    if selected == q["정답"]:
 
-                        score += 1
+                    st.info(
+                        f"정답률 : {rate}%"
+                    )
+
+                    if rate >= 60:
+
+                        st.balloons()
+
+                        st.success(
+                            "🎉 합격권입니다!"
+                        )
 
                     else:
 
-                        save_wrong_answer(q)
+                        st.warning(
+                            "조금 더 복습이 필요합니다."
+                        ) 
+# =========================
+# 오답노트 복습
+# =========================
 
-                percent = round(
-                    score / len(exam) * 100,
-                    1
+elif menu == "📝 오답노트 복습":
+
+
+    wrong = load_wrong()
+
+
+    st.subheader("📝 내 오답노트")
+
+
+    if not wrong:
+
+
+        st.info(
+            "아직 틀린 문제가 없습니다."
+        )
+
+
+    else:
+
+
+        st.write(
+            f"저장된 오답 : {len(wrong)}개"
+        )
+
+
+        for i, item in enumerate(wrong):
+
+
+            with st.expander(
+                f"{i+1}. {item['문제']}"
+            ):
+
+
+                st.write(
+                    f"📌 과목 : {item['과목']}"
                 )
+
+
+                st.write(
+                    "보기"
+                )
+
+
+                for choice in item["보기"]:
+
+                    st.write(choice)
+
 
                 st.success(
-                    f"점수 : {score} / {len(exam)}"
+                    f"정답 : {item['정답']}번"
                 )
+
 
                 st.info(
-                    f"정답률 : {percent}%"
+                    f"해설 : {item['해설']}"
                 )
 
-                if percent >= 60:
 
-                    st.balloons()
 
-                    st.success(
-                        "🎉 합격권입니다!"
-                    )
+# =========================
+# 초기 안내
+# =========================
 
-                else:
+st.sidebar.divider()
 
-                    st.warning(
-                        "📚 조금 더 공부하세요."
-                    )
+st.sidebar.write(
+    "⚡ 전기기능사 CBT 학습 앱"
+)
+
+st.sidebar.write(
+    "문제 선택 → 즉시 채점 → 오답 저장"
+)
