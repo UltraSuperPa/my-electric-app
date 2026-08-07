@@ -70,24 +70,22 @@ def generate_ai_batch(api_key, subject, count):
         except Exception:
             time.sleep(1.0)
             
-    # 서버 에러 대비용 실전 계산 수식 문제 배치
     return [{"과목": subject, "문제": f"$\\sqrt{{ R^2 + X_L^2 }}$ 공식을 이용한 {subject} 실전 변형 문제입니다. 다음 중 역률 계산 공식으로 올바른 것은?", "보기": ["1) $\\frac{R}{Z}$", "2) $\\frac{X}{Z}$", "3) $\\frac{Z}{R}$", "4) $\\frac{Z}{X}$"], "정답": "1", "해설": "역률 $\\cos\\theta = \\frac{R}{Z}$ 이며 임피던스 $Z = \\sqrt{R^2 + X^2}$ 입니다."} for _ in range(count)]
 
-# ⭐ [과부하 완치] 총 문항수를 AI 부담이 적은 30문항으로 가볍게 재믹싱하여 끊김 차단!
 def generate_60_exams(api_key):
-    jokbo_sample = list(PDF_JOKBO_DATA) # 족보 20문제 전체 로드
+    jokbo_sample = random.sample(PDF_JOKBO_DATA, min(20, len(PDF_JOKBO_DATA)))
     
     progress_text = st.empty()
     progress_text.caption("⚡ AI 시험지 빌드 중... (전기이론 변형 파트 구성 중)")
-    ai_theories = generate_ai_batch(api_key, "전기이론", 4)
+    ai_theories = generate_ai_batch(api_key, "전기이론", 14)
     time.sleep(0.3)
     
     progress_text.caption("⚡ AI 시험지 빌드 중... (전기기기 변형 파트 구성 중)")
-    ai_machines = generate_ai_batch(api_key, "전기기기", 3)
+    ai_machines = generate_ai_batch(api_key, "전기기기", 13)
     time.sleep(0.3)
     
     progress_text.caption("⚡ AI 시험지 빌드 중... (전기설비 변형 파트 구성 중)")
-    ai_installs = generate_ai_batch(api_key, "전기설비", 3)
+    ai_installs = generate_ai_batch(api_key, "전기설비", 13)
     progress_text.empty()
     
     total_exam_pool = jokbo_sample + ai_theories + ai_machines + ai_installs
@@ -98,7 +96,7 @@ def generate_60_exams(api_key):
         if not item.get("과목"):
             item["과목"] = "전기이론"
             
-    return total_exam_pool
+    return total_exam_pool[:60]
 
 def save_wrong_answer(quiz_data):
     filename = "wrong_answers.json"
@@ -147,7 +145,7 @@ if 'user_answers' not in st.session_state: st.session_state.user_answers = {}
 if 'exam_submitted' not in st.session_state: st.session_state.exam_submitted = False
 
 st.title("⚡ 전기기능사 스마트 기출앱")
-menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 실전 모의고사", "📝 내 오답노트 복습"], horizontal=True)
+menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 60문항 실전 모의고사", "📝 내 오답노트 복습"], horizontal=True)
 st.markdown("---")
 
 if menu == "📢 메인 화면":
@@ -163,11 +161,12 @@ if menu == "📢 메인 화면":
         st.metric(label="⚡ 2회 이상 중복 오답 수", value=f"{hard_count}개")
     st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
 
-elif menu == "🎯 실전 모의고사":
+elif menu == "🎯 60문항 실전 모의고사":
     if st.session_state.exam_set is None:
         st.subheader("📝 족보 결합형 실전 CBT 모의고사")
-        st.markdown("족보 20문항 + AI 핵심 변형 10문항(총 30문항)이 쾌속 출제됩니다.")
+        st.markdown("족보 20문항 + AI 핵심 변형 40문항이 출제됩니다.")
         
-        # ⭐ [오류 차단] 안정적인 버튼 바인딩 분기로 완전 전환
+        # ⭐ [들여쓰기 버그 완치!] 띄어쓰기 칸수를 엄격하게 맞춰 공백 오류를 영구 격리했습니다.
         if st.button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
             with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
+                st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
