@@ -54,7 +54,23 @@ st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layo
 # 🔑 구글 무료 열쇠 입력 칸
 MY_API_KEY = "AQ.Ab8RN6Jsybtta-vQhZk-o2H62umJ80RtHOd1_yF4Mu6cahG-6w"
 
-# 🛠️ [버그 치유 완료] 세션 상태 초기화 코드를 프로그램 가장 상단으로 올려 완벽히 정돈합니다.
+# 🛠️ [글자 크기 왕창 키우는 비밀 마법의 CSS 디자인 코드]
+st.markdown("""
+    <style>
+    /* 라디오 버튼 보기 글씨 크기를 22픽셀로 대폭 키우고 굵게 만듭니다 */
+    .stRadio p {
+        font-size: 22px !important;
+        font-weight: bold !important;
+        line-height: 1.6 !important;
+    }
+    /* 버튼 글씨도 큼직하게 키웁니다 */
+    .stButton button p {
+        font-size: 20px !important;
+        font-weight: bold !important;
+    }
+    </style>
+""", unsafe_value_handling="IGNORE")
+
 if 'quiz' not in st.session_state:
     st.session_state.quiz = None
 if 'submitted' not in st.session_state:
@@ -71,13 +87,10 @@ if menu == "📢 메인 화면":
     st.info("💡 위의 메뉴 탭에서 '최신 기출 풀기'를 누르면 즉시 시험이 가동됩니다.")
 
 elif menu == "🎯 최신 기출 풀기":
-    # 🛠️ [버그 치유 완료] 문제 생성 타이밍을 완전히 안전하게 버튼 컨트롤 하단으로 격리시킵니다.
     if st.session_state.quiz is None:
-        try:
+        with st.spinner("새로운 기출문제 소환 중..."):
             st.session_state.quiz = generate_real_exam(MY_API_KEY)
             st.session_state.submitted = False
-        except Exception as e:
-            st.error(f"문제 로딩 실패. 키를 확인하세요: {e}")
 
     if st.session_state.quiz:
         q = st.session_state.quiz
