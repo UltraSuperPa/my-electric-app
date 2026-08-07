@@ -7,7 +7,7 @@ import time
 
 # 1. 📌 [기적의 200문제] 엄선 핵심 족보 데이터 보관함
 PDF_JOKBO_DATA = [
-    {"과목": "전기기기", "문제": "동기 발전기의 전기자권선을 단절권으로 하면 어떻게 되는가?", "보기": ["1) 고조파를 제거한다.", "2) 동손을 줄인다.", "3) 역률을 개선한다.", "4) 전압을 높인다."], "정답": "1", "해설": "단절권과 분포권을 사용하면 고조파를 제거하여 기전력의 파형을 개선할 수 있습니다."},
+    {"과목": "전기기기", "문제": "동기 발전기의 전기자권선을 단절권으로 하면 어떻게 되는가?", "보기": ["1) 고조파를 제거한다.", "2) 동손을 줄인다.", "3) 역률을 개선한다.", "4) 전압을 높인다."], "정답": "1", "해설": "단절권 and 분포권을 사용하면 고조파를 제거하여 기전력의 파형을 개선할 수 있습니다."},
     {"과목": "전기설비", "문제": "전기 울타리용 전원 장치에 공급하는 전로의 사용 전압은 최대 몇 V 이하이어야 하는가?", "보기": ["1) 150V", "2) 220V", "3) 250V", "4) 300V"], "정답": "3", "해설": "전기울타리에 전원을 공급하는 전로의 사용전압은 250V 이하이어야 합니다."},
     {"과목": "전기설비", "문제": "다음 중 방수용 콘센트의 그림 기호는 무엇인가?", "보기": ["1) WP", "2) EX", "3) ET", "4) LK"], "정답": "1", "해설": "방수형 콘센트의 기호는 WP입니다."},
     {"과목": "전기기기", "문제": "유도 전동기가 회전하고 있을 때 생기는 손실 중에서 구리손이란?", "보기": ["1) 철심의 히스테리시스손", "2) 철심의 와류손", "3) 1차와 2차의 권선 저항손", "4) 베어링 마찰손"], "정답": "3", "해설": "구리손은 권선의 저항에 의해 전류가 흐르면서 발생하는 저항손입니다."},
@@ -59,11 +59,10 @@ def generate_ai_batch(api_key, subject, count):
     for attempt in range(3):
         try:
             model = genai.GenerativeModel(
-                model_name='gemini-1.5-flash',
-                system_instruction=system_prompt
+                model_name='gemini-1.5-flash'
             )
             response = model.generate_content(
-                f"{subject} 과목의 신규 기출 동형 객관식 문제 {count}개를 생성해줘.",
+                f"시스템 안내사항: {system_prompt}\n\n위 가이드에 맞춰 {subject} 과목의 신규 기출 동형 객관식 문제 {count}개를 생성해줘.",
                 generation_config={"response_mime_type": "application/json", "temperature": 0.7},
                 safety_settings=safety_settings
             )
@@ -142,7 +141,6 @@ def load_wrong_answers():
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
-# 세션 상태 변수 안전하게 초기화
 if 'exam_set' not in st.session_state: st.session_state.exam_set = None
 if 'current_index' not in st.session_state: st.session_state.current_index = 0
 if 'user_answers' not in st.session_state: st.session_state.user_answers = {}
@@ -166,17 +164,13 @@ if menu == "📢 메인 화면":
     st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
 
 elif menu == "🎯 60문항 실전 모의고사":
-    # ⭐ [팅김 완치] 버튼 누를 때 세션 상태를 저장하고 즉시 강제 갱신 처리
     if st.session_state.exam_set is None:
         st.subheader("📝 족보 결합형 실전 CBT 모의고사")
         st.markdown("족보 20문항 + AI 핵심 변형 40문항이 출제됩니다.")
         
-        # form 구조를 써서 버튼 씹힘 및 팅김 현상을 방지
+        # ⭐ [들여쓰기 완전 매감 완료] 띄어쓰기 4칸/8칸 블록 사양 전면 재교정
         with st.form("exam_init_form"):
-            submit_btn = st.form_submit_with_id(
-                label="🚀 모의고사 시험지 출제",
-                id="submit_generate_btn",
-                use_container_width=True
-            )
-            if submit_btn:
+            if st.form_submit_button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
                 with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
+                    st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
+                    st.session_state.current_index = 0
