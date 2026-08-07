@@ -22,7 +22,7 @@ def generate_real_exam(api_key):
         "}"
     )
     response = client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-3.6-flash',
         contents='전기기능사 실제 기출문제 중 1개를 원본 그대로 복원해줘.',
         config=types.GenerateContentConfig(system_instruction=system_prompt, temperature=0.3)
     )
