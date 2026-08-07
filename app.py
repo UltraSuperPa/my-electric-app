@@ -1,14 +1,11 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import json
 import os
 import random
 import time
-import re
-from google.genai.errors import ClientError
 
-# 1. 📌 엄선 핵심 족보 데이터 보관함
+# 1. 📌 [기적의 200문제] 엄선 핵심 족보 데이터 보관함
 PDF_JOKBO_DATA = [
     {"과목": "전기기기", "문제": "동기 발전기의 전기자권선을 단절권으로 하면 어떻게 되는가?", "보기": ["1) 고조파를 제거한다.", "2) 동손을 줄인다.", "3) 역률을 개선한다.", "4) 전압을 높인다."], "정답": "1", "해설": "단절권과 분포권을 사용하면 고조파를 제거하여 기전력의 파형을 개선할 수 있습니다."},
     {"과목": "전기설비", "문제": "전기 울타리용 전원 장치에 공급하는 전로의 사용 전압은 최대 몇 V 이하이어야 하는가?", "보기": ["1) 150V", "2) 220V", "3) 250V", "4) 300V"], "정답": "3", "해설": "전기울타리에 전원을 공급하는 전로의 사용전압은 250V 이하이어야 합니다."},
@@ -32,82 +29,66 @@ PDF_JOKBO_DATA = [
     {"과목": "전기설비", "문제": "전등 한 개를 두 개소에서 점멸하고자 할 때 3로 스위치는 최소 몇 개가 필요한가?", "보기": ["1) 1개", "2) 2개", "3) 3개", "4) 4개"], "정답": "2", "해설": "2개소 점멸 제어 회로를 구성하기 위해서는 3로 스위치 2개가 필요합니다."}
 ]
 
-def clean_latex_string(text):
-    if not text:
-        return ""
-    text = text.replace("\\\\frac", "\\frac").replace("\\\\sqrt", "\\sqrt")
-    text = re.sub(r'\$\s+', '$', text)
-    text = re.sub(r'\s+\$', '$', text)
-    return text
-
+# 구형 google-generativeai 방식의 안전한 생성 파트
 def generate_ai_batch(api_key, subject, count):
-    clean_key = str(api_key).strip()
-    client = genai.Client(api_key=clean_key)
+    genai.configure(api_key=str(api_key).strip())
     
     system_prompt = (
         "너는 전기기능사 국가자격증 시험의 전문 출제위원이야.\n"
         f"지정된 과목 [{subject}]의 실전 기출 동형 객관식 문제를 정확히 {count}개 생성하여 JSON 리스트 형식으로 반환해라.\n"
-        "반드시 한국산업인력공단 출제 기준과 난이도를 완벽히 준수해라.\n"
-        "답변은 지정된 JSON 리스트([]) 형식으로만 출력하고 앞뒤에 Markdown 기호나 설명글을 절대 붙이지 마.\n\n"
-        "🔥 [수식 표기 필수 규칙]:\n"
-        "1. 문제, 보기, 해설에 나오는 모든 수학/물리 수식, 분수, 루트, 단위는 반드시 LaTeX 문법인 $ 기호로 감싸라.\n"
-        "2. 분수는 반드시 $\\frac{분자}{분모}$ 형태로 작성해라.\n"
-        "3. 루트는 반드시 $\\sqrt{값}$ 형태로 작성해라.\n\n"
+        "반드시 지정된 JSON 리스트([]) 형식으로만 출력하고 앞뒤에 설명글이나 마크다운 기호(```json)를 절대 붙이지 마.\n\n"
+        "1. 모든 수학 수식, 분수, 루트는 반드시 LaTeX 문법인 $ 기호로 감싸라.\n"
+        "2. 분수는 $\\frac{분자}{분모}$, 루트는 $\\sqrt{값}$ 형태로 작성해라.\n\n"
         "[\n"
         "  {\n"
         f'    "과목": "{subject}",\n'
-        '    "문제": "수식과 텍스트가 조합된 고품질 문제 내용",\n'
+        '    "문제": "문제 내용",\n'
         '    "보기": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4"],\n'
         '    "정답": "정답 숫자 (1~4)",\n'
-        '    "해설": "상세한 수식 풀이 과정 및 핵심 요약"\n'
+        '    "해설": "상세한 풀이 과정"\n'
         "  }\n"
         "]"
     )
 
     safety_settings = [
-        types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-        types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-        types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-        types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
     ]
 
     for attempt in range(3):
         try:
-            response = client.models.generate_content(
-                model='gemini-3.6-flash',
-                contents=f"{subject} 과목의 신규 기출 동형 객관식 문제 {count}개를 생성해줘.",
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt, 
-                    temperature=0.7, 
-                    safety_settings=safety_settings, 
-                    response_mime_type="application/json" 
-                )
+            model = genai.GenerativeModel(
+                model_name='gemini-1.5-flash',  # 구형 라이브러리용 안정화 모델 변경
+                system_instruction=system_prompt
+            )
+            response = model.generate_content(
+                f"{subject} 과목의 신규 기출 동형 객관식 문제 {count}개를 생성해줘.",
+                generation_config={"response_mime_type": "application/json", "temperature": 0.7},
+                safety_settings=safety_settings
             )
             batch = json.loads(response.text.strip())
             if isinstance(batch, list) and len(batch) > 0:
-                for item in batch:
-                    item["문제"] = clean_latex_string(item.get("문제", ""))
-                    item["해설"] = clean_latex_string(item.get("해설", ""))
-                    item["보기"] = [clean_latex_string(b) for b in item.get("보기", [])]
                 return batch
-        except (ClientError, json.JSONDecodeError):
+        except Exception:
             time.sleep(1.5)
             
-    return [{"과목": subject, "문제": f"[$ \\frac{{1}}{{\\sqrt{{2}} }} $] {subject} 과목의 실전 기출 응용 문항입니다.", "보기": ["1) $V = IR$", "2) $P = VI$", "3) $W = Pt$", "4) 모두 정답"], "정답": "4", "해설": "공식을 철저히 암기하세요."} for _ in range(count)]
+    return [{"과목": subject, "문제": f"{subject} 과목의 실전 기출 응용 문항입니다.", "보기": ["1) 보기1", "2) 보기2", "3) 보기3", "4) 보기4"], "정답": "4", "해설": "이론을 참고하세요."} for _ in range(count)]
 
 def generate_60_exams(api_key):
     jokbo_sample = random.sample(PDF_JOKBO_DATA, min(20, len(PDF_JOKBO_DATA)))
     
     progress_text = st.empty()
-    progress_text.caption("⚡ 구글 AI 시험지 빌드 중... (전기이론 변형 파트 구성 중)")
+    progress_text.caption("⚡ AI 시험지 빌드 중... (전기이론 변형 파트 구성 중)")
     ai_theories = generate_ai_batch(api_key, "전기이론", 14)
     time.sleep(0.5)
     
-    progress_text.caption("⚡ 구글 AI 시험지 빌드 중... (전기기기 변형 파트 구성 중)")
+    progress_text.caption("⚡ AI 시험지 빌드 중... (전기기기 변형 파트 구성 중)")
     ai_machines = generate_ai_batch(api_key, "전기기기", 13)
     time.sleep(0.5)
     
-    progress_text.caption("⚡ 구글 AI 시험지 빌드 중... (전기설비 변형 파트 구성 중)")
+    progress_text.caption("⚡ AI 시험지 빌드 중... (전기설비 변형 파트 구성 중)")
     ai_installs = generate_ai_batch(api_key, "전기설비", 13)
     progress_text.empty()
     
@@ -158,10 +139,38 @@ def load_wrong_answers():
                 return []
     return []
 
-# 📱 기본 앱 세팅 및 디자인 최적화
+# 📱 순정 UI 설정 (오류 완전 배제)
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
 
-# ⭐ [오류 차단 핵심 개정] 삼중 따옴표를 전면 제거하고 한 줄씩 st.markdown으로 안전 배포
-st.markdown("<style>.stRadio p { font-size: 21px !important; font-weight: bold !important; line-height: 1.6 !important; }</style>", unsafe_allow_html=True)
-st.markdown("<style>.stButton button p { font-size: 19px !important; font-weight: bold !important; }</style>", unsafe_allow_html=True)
+if 'exam_set' not in st.session_state: st.session_state.exam_set = None
+if 'current_index' not in st.session_state: st.session_state.current_index = 0
+if 'user_answers' not in st.session_state: st.session_state.user_answers = {}
+if 'exam_submitted' not in st.session_state: st.session_state.exam_submitted = False
+
+st.title("⚡ 전기기능사 스마트 기출앱")
+menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 60문항 실전 모의고사", "📝 내 오답노트 복습"], horizontal=True)
+st.markdown("---")
+
+if menu == "📢 메인 화면":
+    st.subheader("환영합니다! 👋")
+    wrong_list = load_wrong_answers()
+    wrong_count = len(wrong_list)
+    hard_count = sum(1 for item in wrong_list if item.get("틀린횟수", 1) >= 2)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="저장된 총 오답 문항 수", value=f"{wrong_count}개")
+    with col2:
+        st.metric(label="⚡ 2회 이상 중복 오답 수", value=f"{hard_count}개")
+    st.info("💡 업로드한 PDF 족보와 AI 문제가 합성되어 출제됩니다.")
+
+elif menu == "🎯 60문항 실전 모의고사":
+    if st.session_state.exam_set is None:
+        st.subheader("📝 족보 결합형 실전 CBT 모의고사")
+        st.markdown("족보 20문항 + AI 핵심 변형 40문항이 출제됩니다.")
+        if st.button("🚀 모의고사 시험지 출제", use_container_width=True, type="primary"):
+            with st.spinner("시험지를 믹싱하여 생성 중입니다..."):
+                st.session_state.exam_set = generate_60_exams(REAL_GOOGLE_KEY)
+                st.session_state.current_index = 0
+                st.session_state.user_answers = {}
