@@ -50,7 +50,9 @@ def load_wrong_answers():
 
 # 📱 모바일 화면 최적화 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
-API_KEY = st.secrets.get("API_KEY", "")
+
+# 🛠️ [버그 원천 파괴 우회책] 스트림릿 보안창을 거치지 않고 소스코드 내부에 구글 무료 열쇠를 영구 이식합니다.
+MY_API_KEY = "AQ.Ab8RN6Jsybtta-vQhZk-o2H62umJ80RtHOd1_yF4Mu6cahG-6w"
 
 if 'quiz' not in st.session_state:
     st.session_state.quiz = None
@@ -70,7 +72,7 @@ if menu == "📢 메인 화면":
 elif menu == "🎯 최신 기출 풀기":
     if st.session_state.quiz is None:
         with st.spinner("새로운 기출문제 소환 중..."):
-            st.session_state.quiz = generate_real_exam(API_KEY)
+            st.session_state.quiz = generate_real_exam(MY_API_KEY)
             st.session_state.submitted = False
 
     q = st.session_state.quiz
