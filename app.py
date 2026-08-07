@@ -4,9 +4,9 @@ import os
 import random
 
 
-# =========================
-# 기본 설정
-# =========================
+# ==============================
+# 페이지 설정
+# ==============================
 
 st.set_page_config(
     page_title="전기기능사 CBT",
@@ -15,13 +15,14 @@ st.set_page_config(
 )
 
 
-# =========================
-# 화면 크게 설정
-# =========================
+# ==============================
+# 화면 디자인
+# ==============================
 
 st.markdown(
     """
     <style>
+
     .stMarkdown p {
         font-size: 22px;
         line-height: 1.8;
@@ -29,11 +30,12 @@ st.markdown(
 
     .stRadio label {
         font-size: 20px !important;
-        padding: 10px;
+        padding: 8px;
     }
 
-    button {
-        font-size: 18px !important;
+    div[data-testid="stButton"] button {
+        font-size: 18px;
+        height: 3em;
     }
 
     h1 {
@@ -50,76 +52,97 @@ st.markdown(
 )
 
 
-# =========================
-# 문제 데이터 불러오기
-# =========================
+
+# ==============================
+# 파일 위치
+# ==============================
 
 QUESTION_FILE = "questions.json"
+
 WRONG_FILE = "wrong_answers.json"
 
 
+
+# ==============================
+# 문제 불러오기
+# ==============================
+
 def load_questions():
 
-    if os.path.exists(QUESTION_FILE):
+    if not os.path.exists(QUESTION_FILE):
+        return []
 
-        with open(
-            QUESTION_FILE,
-            "r",
-            encoding="utf-8"
-        ) as f:
+    with open(
+        QUESTION_FILE,
+        "r",
+        encoding="utf-8"
+    ) as f:
 
-            return json.load(f)
+        return json.load(f)
+
+
+
+# ==============================
+# 오답 불러오기
+# ==============================
+
+def load_wrong_answers():
+
+    if not os.path.exists(WRONG_FILE):
+
+        return []
+
+
+    with open(
+        WRONG_FILE,
+        "r",
+        encoding="utf-8"
+    ) as f:
+
+        try:
+
+            data = json.load(f)
+
+            if isinstance(data, list):
+                return data
+
+        except:
+
+            pass
+
 
     return []
 
 
 
-# =========================
+# ==============================
 # 오답 저장
-# =========================
+# ==============================
 
-def load_wrong():
+def save_wrong_answer(question):
 
-    if os.path.exists(WRONG_FILE):
+    wrong = load_wrong_answers()
 
-        with open(
-            WRONG_FILE,
-            "r",
-            encoding="utf-8"
-        ) as f:
-
-            try:
-                return json.load(f)
-
-            except:
-                return []
-
-    return []
-
-
-
-def save_wrong(question):
-
-    wrong = load_wrong()
-
-    exists = False
 
     for item in wrong:
 
-        if item["문제"] == question["문제"]:
+        if item.get("문제") == question.get("문제"):
 
             item["틀린횟수"] = item.get(
                 "틀린횟수",
                 1
             ) + 1
 
-            exists = True
+            break
 
+    else:
 
-    if not exists:
+        new_item = question.copy()
 
-        question["틀린횟수"] = 1
-        wrong.append(question)
+        new_item["틀린횟수"] = 1
+
+        wrong.append(new_item)
+
 
 
     with open(
@@ -137,36 +160,49 @@ def save_wrong(question):
 
 
 
+# ==============================
+# 데이터 로드
+# ==============================
+
 questions = load_questions()
 
 
-# =========================
-# 세션 저장
-# =========================
+
+# ==============================
+# 세션 상태
+# ==============================
 
 if "exam" not in st.session_state:
     st.session_state.exam = []
 
+
 if "index" not in st.session_state:
     st.session_state.index = 0
+
 
 if "score" not in st.session_state:
     st.session_state.score = 0
 
+
 if "checked" not in st.session_state:
     st.session_state.checked = False
 
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
-# =========================
+
+if "selected_answer" not in st.session_state:
+    st.session_state.selected_answer = ""
+# ==============================
 # 메인 화면
-# =========================
+# ==============================
 
 st.title("⚡ 전기기능사 스마트 CBT")
 
 
+# ==============================
+# 메뉴
+# ==============================
+
 menu = st.radio(
-    "메뉴 선택",
+    "학습 모드 선택",
     [
         "🎯 실전 모의고사",
         "📝 오답노트 복습"
@@ -178,240 +214,412 @@ menu = st.radio(
 st.divider()
 
 
-# =========================
+
+# ==============================
 # 실전 모의고사
-# =========================
+# ==============================
 
 if menu == "🎯 실전 모의고사":
 
 
-    if not st.session_state.exam:
+    if len(questions) == 0:
 
-
-        st.subheader("60문항 실전 모의고사")
-
-        st.info(
-            "문제를 풀고 답을 선택하면 바로 채점 및 해설이 표시됩니다."
+        st.error(
+            "questions.json 파일에 문제가 없습니다."
         )
 
 
-        if st.button(
-            "🚀 시험 시작",
-            use_container_width=True
-        ):
+    else:
 
 
-            if len(questions) == 0:
+        # 시험 시작 전
 
-                st.error(
-                    "questions.json 파일에 문제가 없습니다."
+        if len(st.session_state.exam) == 0:
+
+
+            st.subheader(
+                "📚 전기기능사 실전 CBT"
+            )
+
+
+            st.info(
+                f"현재 등록 문제 : {len(questions)}문제"
+            )
+
+
+            # 과목 목록
+
+            subjects = list(
+                set(
+                    q.get(
+                        "과목",
+                        "기타"
+                    )
+                    for q in questions
                 )
+            )
 
-            else:
 
-                count = min(
-                    60,
-                    len(questions)
-                )
+            subjects.insert(
+                0,
+                "전체"
+            )
+
+
+            selected_subject = st.selectbox(
+                "출제 범위 선택",
+                subjects
+            )
+
+
+
+            # 출제 문제 수
+
+            count = st.selectbox(
+                "문제 수",
+                [
+                    20,
+                    40,
+                    60
+                ],
+                index=2
+            )
+
+
+
+            if st.button(
+                "🚀 시험 시작",
+                use_container_width=True,
+                type="primary"
+            ):
+
+
+                if selected_subject == "전체":
+
+                    pool = questions
+
+
+                else:
+
+                    pool = [
+
+                        q for q in questions
+
+                        if q.get(
+                            "과목"
+                        ) == selected_subject
+
+                    ]
+
+
+
+                if len(pool) < count:
+
+                    count = len(pool)
+
+
 
                 st.session_state.exam = random.sample(
-                    questions,
+                    pool,
                     count
                 )
 
+
                 st.session_state.index = 0
+
                 st.session_state.score = 0
+
                 st.session_state.checked = False
-                st.session_state.answers = {}
+
+                st.session_state.selected_answer = ""
+
 
                 st.rerun()
 
 
 
-    else:
+        # 시험 진행 중
+
+        else:
 
 
-        quiz = st.session_state.exam[
-            st.session_state.index
-        ]
+            quiz = st.session_state.exam[
+                st.session_state.index
+            ]
 
 
-        number = st.session_state.index + 1
+            current = (
+                st.session_state.index + 1
+            )
 
 
-        st.progress(
-            number / len(st.session_state.exam)
-        )
+            total = len(
+                st.session_state.exam
+            )
 
 
-        st.subheader(
-            f"문제 {number} / {len(st.session_state.exam)}"
-        )
+            st.progress(
+                current / total
+            )
 
 
-        st.write(
-            f"### [{quiz['과목']}]"
-        )
+            st.subheader(
+                f"문제 {current} / {total}"
+            )
 
 
-        st.markdown(
-            f"## {quiz['문제']}"
-        )
-
-
-
-        answer = st.radio(
-            "정답 선택",
-            quiz["보기"],
-            key=f"answer_{number}"
-        )
-
-
-
-        # =========================
-        # 즉시 채점
-        # =========================
-
-
-        if st.button(
-            "✅ 정답 확인",
-            use_container_width=True
-        ):
-
-
-            selected = answer[0]
-
-
-            st.session_state.checked = True
-
-
-            if selected == quiz["정답"]:
-
-
-                st.session_state.score += 1
-
-
-                st.success(
-                    "🎉 정답입니다!"
+            st.caption(
+                quiz.get(
+                    "과목",
+                    ""
                 )
+            )
 
 
-            else:
-
-
-                st.error(
-                    f"❌ 오답입니다. 정답은 {quiz['정답']}번 입니다."
-                )
-
-
-                save_wrong(
-                    quiz
-                )
-
-
-            st.info(
-                f"📖 해설\n\n{quiz['해설']}"
+            st.markdown(
+                f"## {quiz['문제']}"
             )
 
 
 
-        # 다음 문제 버튼
+            answer = st.radio(
+                "정답 선택",
+                quiz["보기"],
+                key=f"answer_{current}"
+            )
 
 
-        if st.session_state.checked:
+
+            st.session_state.selected_answer = answer
 
 
-            if st.session_state.index < len(st.session_state.exam)-1:
+
+            if st.button(
+                "✅ 정답 확인",
+                use_container_width=True
+            ):
+
+                st.session_state.checked = True
+            # ==============================
+            # 채점 및 해설
+            # ==============================
+
+            if st.session_state.checked:
 
 
-                if st.button(
-                    "다음 문제 ➡",
-                    use_container_width=True
-                ):
+                selected = (
+                    st.session_state.selected_answer[0]
+                )
 
 
-                    st.session_state.index += 1
-                    st.session_state.checked = False
-
-                    st.rerun()
+                correct = quiz["정답"]
 
 
-            else:
 
+                if selected == correct:
 
-                if st.button(
-                    "🏁 결과 보기",
-                    use_container_width=True
-                ):
 
                     st.success(
-                        f"시험 종료! 점수 : {st.session_state.score} / {len(st.session_state.exam)}"
-                    )
-
-                    rate = round(
-                        st.session_state.score /
-                        len(st.session_state.exam)
-                        * 100,
-                        1
+                        "🎉 정답입니다!"
                     )
 
 
-                    st.info(
-                        f"정답률 : {rate}%"
+                    # 중복 클릭 방지
+                    if "counted" not in st.session_state:
+
+                        st.session_state.counted = True
+
+                        st.session_state.score += 1
+
+
+
+                else:
+
+
+                    st.error(
+                        f"❌ 오답입니다. 정답은 {correct}번 입니다."
                     )
 
-                    if rate >= 60:
+
+                    save_wrong_answer(
+                        quiz
+                    )
+
+
+                st.info(
+                    f"""
+                    📖 해설
+
+                    {quiz.get('해설','해설 없음')}
+                    """
+                )
+
+
+
+                st.divider()
+
+
+
+                # 다음 문제
+
+                if st.session_state.index < len(
+                    st.session_state.exam
+                ) - 1:
+
+
+
+                    if st.button(
+                        "➡ 다음 문제",
+                        use_container_width=True
+                    ):
+
+
+                        st.session_state.index += 1
+
+                        st.session_state.checked = False
+
+                        st.session_state.selected_answer = ""
+
+                        if "counted" in st.session_state:
+
+                            del st.session_state.counted
+
+
+                        st.rerun()
+
+
+
+                else:
+
+
+
+                    if st.button(
+                        "🏁 결과 확인",
+                        use_container_width=True
+                    ):
+
+
+                        total = len(
+                            st.session_state.exam
+                        )
+
+
+                        score = st.session_state.score
+
+
+
+                        rate = round(
+                            score / total * 100,
+                            1
+                        )
+
 
                         st.balloons()
 
+
+
                         st.success(
-                            "🎉 합격권입니다!"
+                            f"""
+                            시험 종료
+
+                            점수 : {score} / {total}
+
+                            정답률 : {rate}%
+                            """
                         )
 
-                    else:
 
-                        st.warning(
-                            "조금 더 복습이 필요합니다."
-                        ) 
-# =========================
+
+                        if rate >= 60:
+
+                            st.success(
+                                "🎉 합격권입니다!"
+                            )
+
+                        else:
+
+                            st.warning(
+                                "📚 복습이 필요합니다."
+                            )
+
+
+                        # 초기화 버튼
+
+                        if st.button(
+                            "🔄 다시 시험보기"
+                        ):
+
+                            st.session_state.exam = []
+
+                            st.session_state.index = 0
+
+                            st.session_state.score = 0
+
+                            st.session_state.checked = False
+
+                            st.rerun()
+                            # ==============================
 # 오답노트 복습
-# =========================
+# ==============================
 
 elif menu == "📝 오답노트 복습":
 
 
-    wrong = load_wrong()
+    st.subheader(
+        "📝 내 오답노트"
+    )
 
 
-    st.subheader("📝 내 오답노트")
+    wrong_list = load_wrong_answers()
 
 
-    if not wrong:
+
+    if len(wrong_list) == 0:
 
 
         st.info(
-            "아직 틀린 문제가 없습니다."
+            "아직 저장된 오답이 없습니다."
         )
+
 
 
     else:
 
 
-        st.write(
-            f"저장된 오답 : {len(wrong)}개"
+
+        st.success(
+            f"저장된 오답 : {len(wrong_list)}문제"
         )
 
 
-        for i, item in enumerate(wrong):
+
+        # 틀린 횟수 많은 순서
+
+        wrong_list = sorted(
+            wrong_list,
+            key=lambda x: x.get(
+                "틀린횟수",
+                1
+            ),
+            reverse=True
+        )
+
+
+
+        for idx, item in enumerate(
+            wrong_list,
+            start=1
+        ):
+
 
 
             with st.expander(
-                f"{i+1}. {item['문제']}"
+                f"{idx}. {item['문제']} (틀린 횟수 : {item.get('틀린횟수',1)}회)"
             ):
 
 
                 st.write(
-                    f"📌 과목 : {item['과목']}"
+                    f"📌 과목 : {item.get('과목','')}"
                 )
 
 
@@ -422,7 +630,9 @@ elif menu == "📝 오답노트 복습":
 
                 for choice in item["보기"]:
 
-                    st.write(choice)
+                    st.write(
+                        choice
+                    )
 
 
                 st.success(
@@ -431,21 +641,41 @@ elif menu == "📝 오답노트 복습":
 
 
                 st.info(
-                    f"해설 : {item['해설']}"
+                    f"해설 : {item.get('해설','')}"
                 )
 
 
 
-# =========================
-# 초기 안내
-# =========================
+
+# ==============================
+# 사이드바
+# ==============================
 
 st.sidebar.divider()
 
-st.sidebar.write(
-    "⚡ 전기기능사 CBT 학습 앱"
+
+st.sidebar.title(
+    "⚡ 전기기능사 CBT"
 )
 
+
 st.sidebar.write(
-    "문제 선택 → 즉시 채점 → 오답 저장"
+    "기출 중심 학습 시스템"
+)
+
+
+st.sidebar.write(
+    """
+    기능
+
+    ✅ 실전 모의고사
+
+    ✅ 즉시 채점
+
+    ✅ 해설 제공
+
+    ✅ 오답 저장
+
+    ✅ 오답 복습
+    """
 )
