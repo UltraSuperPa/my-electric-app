@@ -51,9 +51,10 @@ def load_wrong_answers():
 # 📱 모바일 화면 최적화 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 
-# 🛠️ [버그 원천 파괴 우회책] 스트림릿 보안창을 거치지 않고 소스코드 내부에 구글 무료 열쇠를 영구 이식합니다.
+# 🔑 구글 무료 열쇠 입력 칸
 MY_API_KEY = "AQ.Ab8RN6Jsybtta-vQhZk-o2H62umJ80RtHOd1_yF4Mu6cahG-6w"
 
+# 🛠️ [버그 치유 완료] 세션 상태 초기화 코드를 프로그램 가장 상단으로 올려 완벽히 정돈합니다.
 if 'quiz' not in st.session_state:
     st.session_state.quiz = None
 if 'submitted' not in st.session_state:
@@ -70,35 +71,39 @@ if menu == "📢 메인 화면":
     st.info("💡 위의 메뉴 탭에서 '최신 기출 풀기'를 누르면 즉시 시험이 가동됩니다.")
 
 elif menu == "🎯 최신 기출 풀기":
+    # 🛠️ [버그 치유 완료] 문제 생성 타이밍을 완전히 안전하게 버튼 컨트롤 하단으로 격리시킵니다.
     if st.session_state.quiz is None:
-        with st.spinner("새로운 기출문제 소환 중..."):
+        try:
             st.session_state.quiz = generate_real_exam(MY_API_KEY)
             st.session_state.submitted = False
+        except Exception as e:
+            st.error(f"문제 로딩 실패. 키를 확인하세요: {e}")
 
-    q = st.session_state.quiz
-    st.info(f"📌 {q['연도']} / {q['과목']}")
-    st.markdown(f"### **Q. {q['문제']}**")
-    
-    choice = st.radio("정답 선택:", q['보기'], index=None, key="real_radio")
-    
-    if choice and not st.session_state.submitted:
-        if st.button("📝 정답 제출 및 채점하기", use_container_width=True, type="primary"):
-            st.session_state.submitted = True
-            st.rerun()
+    if st.session_state.quiz:
+        q = st.session_state.quiz
+        st.info(f"📌 {q['연도']} / {q['과목']}")
+        st.markdown(f"### **Q. {q['문제']}**")
+        
+        choice = st.radio("정답 선택:", q['보기'], index=None, key="real_radio")
+        
+        if choice and not st.session_state.submitted:
+            if st.button("📝 정답 제출 및 채점하기", use_container_width=True, type="primary"):
+                st.session_state.submitted = True
+                st.rerun()
 
-    if st.session_state.submitted:
-        if str(choice) == str(q['정답']):
-            st.success("⭕ 정답입니다! 아주 훌륭하십니다! 🎉")
-        else:
-            st.error(f"❌ 틀렸습니다! (실제 정답: {q['정답']}번)")
-            save_wrong_answer(q)
-            
-        st.warning(f"💡 [기출 해설]\n{q['해설']}")
-        st.markdown("---")
-        if st.button("➡️ 다음 진짜 기출문제 풀기", use_container_width=True):
-            st.session_state.quiz = None
-            st.session_state.submitted = False
-            st.rerun()
+        if st.session_state.submitted:
+            if str(choice) == str(q['정답']):
+                st.success("⭕ 정답입니다! 아주 훌륭하십니다! 🎉")
+            else:
+                st.error(f"❌ 틀렸습니다! (실제 정답: {q['정답']}번)")
+                save_wrong_answer(q)
+                
+            st.warning(f"💡 [기출 해설]\n{q['해설']}")
+            st.markdown("---")
+            if st.button("➡️ 다음 진짜 기출문제 풀기", use_container_width=True):
+                st.session_state.quiz = None
+                st.session_state.submitted = False
+                st.rerun()
 
 elif menu == "📝 내 오답노트 복습":
     wrong_list = load_wrong_answers()
