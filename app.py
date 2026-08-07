@@ -27,12 +27,12 @@ PDF_JOKBO_DATA = [
     {"과목": "전기이론", "문제": "$1\\text{ kWh}$는 몇 $\\text{J}$인가?", "보기": ["1) $3.6 \\times 10^3\\text{ J}$", "2) $3.6 \\times 10^4\\text{ J}$", "3) $3.6 \\times 10^5\\text{ J}$", "4) $3.6 \\times 10^6\\text{ J}$"], "정답": "4", "해설": "$1\\text{ kWh} = 1000\\text{ W} \\times 3600\\text{초} = 3,600,000\\text{ J} = 3.6 \\times 10^6\\text{ J}$ 입니다."},
     {"과목": "전기설비", "문제": "사람의 전기 감전을 방지하기 위하여 설치하는 주택용 누전 차단기는 정격 감도 전류와 동작 시간이 얼마 이하여야 하는가?", "보기": ["1) 30mA 이하, 0.03초 이하", "2) 30mA 이하, 0.1초 이하", "3) 15mA 이하, 0.03초 이하", "4) 50mA 이하, 0.05초 이하"], "정답": "1", "해설": "인체감전보호용 누전차단기는 정격감도전류 30mA 이하, 동작시간 0.03초 이하의 고속형이어야 합니다."},
     {"과목": "전기설비", "문제": "다음 중 내열성 PVC 전선의 최고 허용 온도는?", "보기": ["1) 60℃", "2) 75℃", "3) 90℃", "4) 105℃"], "정답": "3", "해설": "내열성 염화비닐(PVC) 절연전선의 최고허용온도는 90℃ 입니다."},
-    {"과목": "전기이론", "문제": "줄의 법칙에서 발열량 계산식을 옳게 표시한 것은?", "보기": ["1) $H = 0.24 \\times I \\times R \\times t$", "2) $H = 0.24 \\times I^2 \\times R \\times t$", "3) $H = 0.43 \\times I \\times R^2 \\times t$", "4) $H = 0.43 \\times I^2 \\times R \\times t$"], "정답": "2", "해설": "발열량 $H = 0.24 \\times W = 0.24 \\times I^2 R t \\text{ [cal]}$ 입니다."},
+    {"과목": "전기이론", "문제": "줄의 법칙에서 발열량 계산식을 옳게 표시한 것은?", "보기": ["1) $H = 0.24 \\times I \\times R \\times t$", "2) $H = 0.24 \\times I^2 \\times R \\times t$", "3) $H = 0.43 \\times I \\times R^2 \\times t$", "4) $H = 0.43 \\times I^2 \\times R \\times t$"], "정답": "2", "해설": "발열량 $H = 0.24 \\times W = 0.24 \\times I^2 R t \\text [cal]$ 입니다."},
     {"과목": "전기기기", "문제": "동기 발전기의 병렬 운전에서 같지 않아도 되는 것은?", "보기": ["1) 기전력의 크기", "2) 기전력의 위상", "3) 발전기의 용량", "4) 기전력의 주파수"], "정답": "3", "해설": "동기발전기 병렬운전 조건은 크기, 위상, 주파수, 파형, 상회전 방향이 같아야 하며, 용량은 달라도 됩니다."},
     {"과목": "전기설비", "문제": "전등 한 개를 두 개소에서 점멸하고자 할 때 3로 스위치는 최소 몇 개가 필요한가?", "보기": ["1) 1개", "2) 2개", "3) 3개", "4) 4개"], "정답": "2", "해설": "2개소 점멸 제어 회로를 구성하기 위해서는 3로 스위치 2개가 양쪽에 필요합니다."}
 ]
 
-# 수식 공백 및 이중 슬래시 정제 함수
+# 수식 공백 및 문자열 안전 청소 엔진
 def clean_latex_string(text):
     if not text:
         return ""
@@ -41,7 +41,7 @@ def clean_latex_string(text):
     text = re.sub(r'\s+\$', '$', text)
     return text
 
-# AI에게 나머지 변형 문제를 요청하는 시스템
+# 구글 Gemini에 원격 생성 요청을 넣는 파트
 def generate_ai_batch(api_key, subject, count):
     clean_key = str(api_key).strip()
     client = genai.Client(api_key=clean_key)
@@ -66,7 +66,6 @@ def generate_ai_batch(api_key, subject, count):
         "]"
     )
 
-    # ⭐ [오타 박멸!] HARM_CATEGORY_HEE_SPEECH를 HARM_CATEGORY_HATE_SPEECH로 완벽 교정
     safety_settings = [
         types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
         types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
@@ -98,7 +97,7 @@ def generate_ai_batch(api_key, subject, count):
             
     return [{"과목": subject, "문제": f"[$ \\frac{{1}}{{\\sqrt{{2}} }} $] {subject} 과목의 실전 기출 응용 문항입니다.", "보기": ["1) $V = IR$", "2) $P = VI$", "3) $W = Pt$", "4) 모두 정답"], "정답": "4", "해설": "공식을 철저히 암기하세요."} for _ in range(count)]
 
-# [PDF 족보 20문제 + AI 변형 40문제] 최종 시험지 믹스 빌더
+# [PDF 족보 20문제 + AI 변형 40문제] 최종 합체 빌더
 def generate_60_exams(api_key):
     jokbo_sample = random.sample(PDF_JOKBO_DATA, min(20, len(PDF_JOKBO_DATA)))
     
@@ -125,7 +124,7 @@ def generate_60_exams(api_key):
             
     return total_exam_pool[:60]
 
-# 오답노트 관리
+# 오답노트 입출력 관리
 def save_wrong_answer(quiz_data):
     filename = "wrong_answers.json"
     wrong_list = []
@@ -165,3 +164,7 @@ def load_wrong_answers():
 
 # 📱 기본 앱 세팅 및 디자인 최적화
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
+REAL_GOOGLE_KEY = st.secrets.get("API_KEY", "")
+
+st.markdown("""
+    <style>
