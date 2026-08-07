@@ -7,7 +7,10 @@ import random
 
 # 구글 AI에게 기출 원본 요청
 def generate_real_exam(api_key):
-    client = genai.Client(api_key=api_key)
+    # 🛠️ [공백 버그 원천 차단] 키 앞뒤에 숨은 공백이나 스페이스바를 컴퓨터가 강제로 지우고 깨끗하게 읽도록 만듭니다.
+    clean_key = str(api_key).strip()
+    client = genai.Client(api_key=clean_key)
+    
     system_prompt = (
         "너는 전기기능사 국가자격증 시험의 전문 기출문제 보관소야.\n"
         "절대로 문제를 변형하거나 창작하지 말고, 2023~2026년 한국산업인력공단 필기 시험에 출제되었던 '진짜 원본 기출문제' 중 1문제를 복원해줘.\n"
@@ -51,19 +54,17 @@ def load_wrong_answers():
 # 📱 모바일 화면 최적화 세팅
 st.set_page_config(page_title="전기기능사 기출앱", page_icon="⚡", layout="centered")
 
-# 🔑 구글 무료 열쇠 입력 칸
+# 🛠️ [가장 중요] 여기에 김경욱 님의 진짜 구글 무료 API 키(AIzaSy...)를 정확하게 붙여넣으세요!
 MY_API_KEY = "AQ.Ab8RN6Jsybtta-vQhZk-o2H62umJ80RtHOd1_yF4Mu6cahG-6w"
 
-# 🛠️ [글자 크기 왕창 키우는 비밀 마법의 CSS 디자인 코드]
+# 🎨 [글자 크기 시원시원하게 2배로 키우는 디자인]
 st.markdown("""
     <style>
-    /* 라디오 버튼 보기 글씨 크기를 22픽셀로 대폭 키우고 굵게 만듭니다 */
     .stRadio p {
         font-size: 22px !important;
         font-weight: bold !important;
         line-height: 1.6 !important;
     }
-    /* 버튼 글씨도 큼직하게 키웁니다 */
     .stButton button p {
         font-size: 20px !important;
         font-weight: bold !important;
