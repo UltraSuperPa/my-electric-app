@@ -149,7 +149,7 @@ menu = st.radio("모드 선택", ["📢 메인 화면", "🎯 60문항 실전 �
 st.markdown("---")
 
 if menu == "📢 메인 화면":
-    st.subheader("김경욱 님, 환영합니다! 👋")
+    st.subheader("열공 님, 환영합니다! 👋")
     wrong_list = load_wrong_answers()
     wrong_count = len(wrong_list)
     hard_count = sum(1 for item in wrong_list if item.get("틀린횟수", 1) >= 2)
